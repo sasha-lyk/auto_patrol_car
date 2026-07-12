@@ -40,6 +40,8 @@ from rclpy.node import Node
 from std_msgs.msg import Int32MultiArray
 from tf2_ros import TransformBroadcaster
 
+from .control_core import DifferentialOdometry
+
 
 def quaternion_from_yaw(yaw):
     return Quaternion(x=0.0, y=0.0, z=math.sin(yaw * 0.5), w=math.cos(yaw * 0.5))
@@ -74,6 +76,7 @@ class WheelOdometryNode(Node):
         self.x = 0.0
         self.y = 0.0
         self.theta = 0.0
+        self.integrator = DifferentialOdometry(self.wheel_sep)
         self.have_prev = False
         self.prev_left = 0
         self.prev_right = 0
@@ -117,18 +120,8 @@ class WheelOdometryNode(Node):
         self.prev_right = right
         self.prev_stamp = now
 
-        d_center = 0.5 * (d_left + d_right)
-        d_theta = (d_right - d_left) / self.wheel_sep
-
-        if abs(d_theta) < 1e-6:
-            self.x += d_center * math.cos(self.theta)
-            self.y += d_center * math.sin(self.theta)
-        else:
-            radius = d_center / d_theta
-            self.x += radius * (math.sin(self.theta + d_theta) - math.sin(self.theta))
-            self.y -= radius * (math.cos(self.theta + d_theta) - math.cos(self.theta))
-        self.theta = math.atan2(math.sin(self.theta + d_theta),
-                                math.cos(self.theta + d_theta))
+        self.x, self.y, self.theta, d_center, d_theta = self.integrator.update(
+            d_left, d_right)
 
         self.v = d_center / dt
         self.w = d_theta / dt

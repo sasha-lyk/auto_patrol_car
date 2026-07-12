@@ -63,7 +63,7 @@ flowchart TB
 
   bridge -->|cmd_vel_web| assist
   assist -->|cmd_vel_web_assisted| mux
-  bridge -->|cmd_vel_emergency| mux
+  bridge -->|emergency_stop / reset| mux
   mux -->|cmd_vel| motor
   motor -->|PWM| wheels((车轮))
   wheels --> enc
@@ -119,7 +119,7 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  e["cmd_vel_emergency (255)"] --> mux{cmd_vel_mux}
+  e["emergency_stop (latched)"] --> mux{cmd_vel_mux}
   w["cmd_vel_web_assisted (100)"] --> mux
   t["cmd_vel_teleop (90)"] --> mux
   n["cmd_vel_nav (50)"] --> mux

@@ -5,7 +5,7 @@ Node graph (namespace car01):
   cmd_vel_web ─> turn_assist ─> cmd_vel_web_assisted ─┐
   cmd_vel_teleop ────────────────────────────────────┤
   cmd_vel_nav (from Nav2 collision_monitor) ──────────┤─> cmd_vel_mux ─> cmd_vel
-  cmd_vel_emergency ──────────────────────────────────┘                    │
+  emergency_stop(True) ─> latched inhibit ────────────────────────────────┤
                                                                             v
                                     encoder_node ─> wheel_speeds_std ─> l298n_motor_node (PID)
                                     encoder_node ─> wheel_ticks_std ─> wheel_odometry_node ─> odom

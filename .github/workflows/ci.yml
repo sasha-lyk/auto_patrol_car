@@ -40,6 +40,11 @@ jobs:
           sys.exit(1 if bad else 0)
           PY
 
+      - name: Core unit tests and subsystem simulation
+        run: |
+          python -m unittest discover -s tests -v
+          python tools/simulate_subsystems.py
+
       - name: flake8 (style, non-blocking)
         run: flake8 src --count --max-line-length=100 --statistics || true
 

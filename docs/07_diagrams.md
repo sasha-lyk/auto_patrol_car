@@ -22,7 +22,7 @@
       ▼        ▼
  wheel_odom  l298n_motor(PID) ◄──────────────── cmd_vel ◄─── cmd_vel_mux
       │ odom      ▲                                              ▲  ▲  ▲  ▲
-      │           │ PWM/GPIO                          emergency ─┘  │  │  └─ nav
+      │           │ PWM/GPIO                    latched E-STOP ─┘  │  │  └─ nav
       ▼           ▼                                        web_asst─┘  └─teleop
     ekf_filter_node ──► TF: odom → base_link                 ▲
       ▲                                                       │ turn_assist
@@ -76,8 +76,8 @@ base_link
 ## 8.4 cmd_vel 优先级仲裁
 
 ```
-优先级   来源话题                  超时
- 255  cmd_vel_emergency  ─┐      0.3s
+状态/优先级   来源话题                  超时
+ 锁存  emergency_stop     ─┐      无；必须显式复位
  100  cmd_vel_web_assisted├─► mux 选当前"未超时且最高优先级" ─► cmd_vel
   90  cmd_vel_teleop     ─┤      0.8s
   50  cmd_vel_nav        ─┘      0.6s

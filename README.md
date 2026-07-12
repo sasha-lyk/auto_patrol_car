@@ -9,7 +9,7 @@
 一个基于 ROS2 的树莓派差速驱动自主巡检机器人。通过**轮速编码器**构成两层闭环,
 从底层保证运动与定位的可靠性:
 
-- **控制闭环**:编码器实测轮速 → PID → 电机 PWM。无论负载、电池电压如何变化,轮子都能达到指令速度。
+- **控制闭环**:编码器实测轮速 → PID → 电机 PWM。在已标定的负载、电压与地面范围内抑制轮速偏差。
 - **估计闭环**:编码器里程计 + IMU → 扩展卡尔曼滤波(EKF)融合 → 稳定的 `odom→base_link` 位姿。
 
 在此基础上运行 slam_toolbox 建图、Nav2 自主导航与定点巡逻,并提供 Web 远程控制与实时遥测。
@@ -23,7 +23,7 @@
 - 🧭 **robot_localization EKF** 融合编码器里程计与 IMU,抑制航向漂移
 - 🗺️ **slam_toolbox** 建图 + **AMCL** 定位
 - 🚗 **Smac Hybrid-A\*** 全局规划 + **Regulated Pure Pursuit** 局部控制,针对不可原地转向的车辆生成运动学可行路径
-- 🛡️ **cmd_vel 优先级仲裁**(急停 > 网页 > 遥控 > 导航)+ collision_monitor 停障
+- 🛡️ **锁存式急停 + cmd_vel 优先级仲裁**(网页 > 遥控 > 导航)+ collision_monitor 停障
 - 🧱 **反应式沿墙巡逻**,不依赖地图/定位,作为降级方案
 - 🌐 **Flask + ROS2 Web 控制台**,实时可视化位姿与闭环轮速
 
@@ -71,6 +71,20 @@ ros2 launch raspi_car_bringup patrol.launch.py
 # 3. 另开终端启动 Web 控制台(浏览器访问 http://<pi_ip>:8080)
 ros2 launch raspi_car_web web_control.launch.py
 ```
+
+首次部署不能直接运行巡逻。必须先在当前地图中采集真实 AMCL 位姿并生成与地图
+SHA-256 指纹绑定的路线，详见 [`docs/06_build_run.md`](docs/06_build_run.md)。未标定路线会被
+`patrol_node` 拒绝，避免示例坐标驱动车辆。
+
+无需 ROS/GPIO 的核心验证：
+
+```bash
+python3 -m unittest discover -s tests -v
+python3 tools/simulate_subsystems.py
+```
+
+实车巡逻会自动记录逐圈结果，可用 `python3 tools/summarize_patrol_metrics.py` 生成可追溯的
+成功率和耗时统计。
 
 依赖安装、分步验证与标定见 [`docs/06_build_run.md`](docs/06_build_run.md),
 日常使用见 [`USER_MANUAL.md`](USER_MANUAL.md)。

@@ -28,36 +28,9 @@ import time
 import rclpy
 from geometry_msgs.msg import Twist
 from rclpy.node import Node
-from std_msgs.msg import Float32MultiArray, String
+from std_msgs.msg import Bool, Float32MultiArray, String
 
-
-class Pid:
-    """Simple velocity-form PID with integral clamp and output clamp."""
-
-    def __init__(self, kp, ki, kd, out_min=-1.0, out_max=1.0, i_max=0.5):
-        self.kp = kp
-        self.ki = ki
-        self.kd = kd
-        self.out_min = out_min
-        self.out_max = out_max
-        self.i_max = i_max
-        self.integral = 0.0
-        self.prev_err = 0.0
-
-    def reset(self):
-        self.integral = 0.0
-        self.prev_err = 0.0
-
-    def step(self, target, measured, dt):
-        if dt <= 1e-6:
-            return 0.0
-        err = target - measured
-        self.integral += err * dt
-        self.integral = max(-self.i_max, min(self.i_max, self.integral))
-        deriv = (err - self.prev_err) / dt
-        self.prev_err = err
-        out = self.kp * err + self.ki * self.integral + self.kd * deriv
-        return max(self.out_min, min(self.out_max, out))
+from .control_core import Pid, wheel_targets
 
 
 class L298NMotorDriver:
@@ -135,6 +108,7 @@ class L298NMotorNode(Node):
         self.status_period_sec = float(self.get_parameter('status_period_sec').value)
         self.closed_loop = bool(self.get_parameter('closed_loop').value)
         self.feedback_timeout = float(self.get_parameter('feedback_timeout_sec').value)
+        self.estop_latched = False
 
         self.driver = L298NMotorDriver(self)
 
@@ -165,10 +139,12 @@ class L298NMotorNode(Node):
         cmd_vel_topic = str(self.get_parameter('cmd_vel_topic').value)
         speeds_topic = str(self.get_parameter('wheel_speeds_topic').value)
         status_topic = str(self.get_parameter('status_topic').value)
+        estop_state_topic = str(self.get_parameter('emergency_state_topic').value)
         control_period = float(self.get_parameter('control_period_sec').value)
 
         self.create_subscription(Twist, cmd_vel_topic, self.cmd_vel_callback, 10)
         self.create_subscription(Float32MultiArray, speeds_topic, self.speeds_callback, 20)
+        self.create_subscription(Bool, estop_state_topic, self.estop_callback, 10)
         self.status_pub = self.create_publisher(String, status_topic, 10)
         self.create_timer(control_period, self.control_loop)
         self.create_timer(self.status_period_sec, self.status_loop)
@@ -182,6 +158,7 @@ class L298NMotorNode(Node):
         self.declare_parameter('cmd_vel_topic', 'cmd_vel')
         self.declare_parameter('wheel_speeds_topic', 'wheel_speeds_std')
         self.declare_parameter('status_topic', 'base_controller/status')
+        self.declare_parameter('emergency_state_topic', 'emergency_stop_latched')
         self.declare_parameter('left_pwm_pin_bcm', 18)
         self.declare_parameter('left_in1_pin_bcm', 23)
         self.declare_parameter('left_in2_pin_bcm', 24)
@@ -211,6 +188,8 @@ class L298NMotorNode(Node):
         self.declare_parameter('feedforward_gain', 0.9)
 
     def cmd_vel_callback(self, msg):
+        if self.estop_latched:
+            return
         linear_x = max(-self.max_linear_speed, min(self.max_linear_speed, msg.linear.x))
         angular_z = max(-self.max_angular_speed, min(self.max_angular_speed, msg.angular.z))
         if self.reverse_forward:
@@ -220,8 +199,8 @@ class L298NMotorNode(Node):
         self.last_cmd_time = time.monotonic()
         self.timed_out = False
 
-        self.target_left = linear_x - angular_z * self.wheel_base / 2.0
-        self.target_right = linear_x + angular_z * self.wheel_base / 2.0
+        self.target_left, self.target_right = wheel_targets(
+            linear_x, angular_z, self.wheel_base)
 
     def speeds_callback(self, msg):
         if len(msg.data) >= 2:
@@ -229,10 +208,33 @@ class L298NMotorNode(Node):
             self.meas_right = float(msg.data[1])
             self.last_fb_time = time.monotonic()
 
+    def estop_callback(self, msg):
+        was_latched = self.estop_latched
+        self.estop_latched = bool(msg.data)
+        if self.estop_latched:
+            self.target_left = 0.0
+            self.target_right = 0.0
+            self.left_pwm = 0.0
+            self.right_pwm = 0.0
+            self.pid_left.reset()
+            self.pid_right.reset()
+            self.driver.stop()
+            if not was_latched:
+                self.get_logger().error('motor output inhibited by latched E-STOP')
+        elif was_latched:
+            self.last_cmd_time = time.monotonic()
+            self.get_logger().warn('motor E-STOP inhibit cleared')
+
     def control_loop(self):
         now = time.monotonic()
         dt = now - self.last_ctrl_time
         self.last_ctrl_time = now
+
+        # Defence in depth: even if the mux is misconfigured, a latched state
+        # directly inhibits the GPIO motor output.
+        if self.estop_latched:
+            self.driver.stop()
+            return
 
         # cmd_vel watchdog: stop if no command recently
         if now - self.last_cmd_time > self.cmd_vel_timeout_sec:
@@ -302,6 +304,7 @@ class L298NMotorNode(Node):
             'right_pwm': round(self.right_pwm, 3),
             'timed_out': self.timed_out,
             'dry_run': self.driver.dry_run,
+            'estop_latched': self.estop_latched,
         }, separators=(',', ':'))
         self.status_pub.publish(msg)
 

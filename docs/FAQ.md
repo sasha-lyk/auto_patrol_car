@@ -47,7 +47,7 @@ Pure Pursuit 并关闭 `use_rotate_to_heading`,保证全程不原地旋转。
 ## 系统的安全机制有哪些?
 
 三层:
-1. **cmd_vel 优先级 mux** + 各路超时:急停最高优先级,人工操作可随时接管自主导航。
+1. **锁存急停 + cmd_vel 优先级 mux**：急停无超时且需显式复位；普通人工指令可接管导航。
 2. **collision_monitor**:独立读取激光,近距离障碍触发停车/减速多边形。
 3. **电机节点 cmd_vel 看门狗**:0.6s 无新指令自动停车并复位 PID。
 
@@ -63,6 +63,7 @@ Pure Pursuit 并关闭 `use_rotate_to_heading`,保证全程不原地旋转。
 
 ## 没有硬件能运行吗?
 
-可以。将 `l298n.yaml` 的 `dry_run` 设为 `true`,电机与编码器节点不操作真实 GPIO,
-整张 ROS2 计算图与 Web 控制台照常运行,便于开发调试。完整的 SLAM+导航验证建议在
-Gazebo 仿真中进行。
+可以。先运行 `python3 -m unittest discover -s tests -v` 和
+`python3 tools/simulate_subsystems.py` 验证核心数学与安全状态机。将 `l298n.yaml` 的
+`dry_run` 设为 `true` 还能在 ROS2 环境运行计算图。它们都不能替代最终实车验收，见
+`docs/08_validation.md`。

@@ -80,7 +80,7 @@ colcon build --symlink-install    # 让新地图进 install
 ```bash
 ros2 launch raspi_car_bringup nav2.launch.py     # 导航(在 RViz 里点 2D Goal)
 # 或
-ros2 launch raspi_car_bringup patrol.launch.py   # 循环巡逻 waypoints
+ros2 launch raspi_car_bringup patrol.launch.py   # 仅接受已现场标定且地图匹配的路线
 ```
 
 ### E. Web 控制台
@@ -100,8 +100,8 @@ ros2 launch raspi_car_base l298n_base.launch.py
 # 电机/编码器不操作真实 GPIO,话题照常流转,Web 可显示(轮速为0)
 ```
 
-真正验证 SLAM+导航建议上 **Gazebo 仿真**(用 fishbot 类差速模型),
-仿真里 odom/scan 都是理想源,能完整跑通建图→导航→巡逻。
+核心控制、安全和里程计可先执行 `python3 tools/simulate_subsystems.py`。它提供确定性
+回归证据，但不能代替 ROS2/Gazebo 或实车。完整边界见 `docs/08_validation.md`。
 
 ## 6.5 标定顺序(真机)
 
@@ -110,7 +110,21 @@ ros2 launch raspi_car_base l298n_base.launch.py
 3. 里程计尺度(直行 1m 校 `wheel_radius`;转 360° 校 `wheel_separation`)
 4. PID 整定(`pid_kp/ki/kd`:先 P 后 I,消除稳态误差,D 抑制抖动)
 5. 雷达零位/偏装角(`laser_front_angle_deg`,或核对静态 TF)
-6. 巡逻点(在地图里 teleop 到各点读 `amcl_pose` 填 `patrol_waypoints.yaml`)
+6. 巡逻点：运行 `record_waypoints.launch.py`，在每个现场位置调用 `capture_waypoint`，
+   最后调用 `save_route`。不要手抄示例坐标。
+
+### 真实场地路线采集
+
+```bash
+ros2 launch raspi_car_bringup record_waypoints.launch.py
+# 移动到每个点后重复执行
+ros2 service call /car01/capture_waypoint std_srvs/srv/Trigger {}
+# 至少两个点后保存
+ros2 service call /car01/save_route std_srvs/srv/Trigger {}
+```
+
+采集器会拒绝陈旧或协方差过大的 AMCL 位姿，保存文件会绑定地图 YAML 和图像的
+SHA-256。巡逻每圈结果写入 `~/.ros/raspi_car/logs/patrol_metrics.jsonl`。
 
 ## 6.6 常见问题排查
 

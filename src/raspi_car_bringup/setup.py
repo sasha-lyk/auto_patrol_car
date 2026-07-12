@@ -29,6 +29,7 @@ setup(
             'turn_assist_node = raspi_car_bringup.turn_assist_node:main',
             'patrol_node = raspi_car_bringup.patrol_node:main',
             'wall_follower_node = raspi_car_bringup.wall_follower_node:main',
+            'waypoint_recorder_node = raspi_car_bringup.waypoint_recorder_node:main',
         ],
     },
 )

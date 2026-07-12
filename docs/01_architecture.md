@@ -37,11 +37,12 @@
 | `planner_server` | (nav2) | 全局路径 | `map`, costmap | path |
 | `controller_server` | (nav2) | 局部跟踪 | path, `scan` | `cmd_vel_raw` |
 | `collision_monitor` | (nav2) | 碰撞减速/急停 | `cmd_vel_raw`, `scan` | `cmd_vel_nav` |
-| `cmd_vel_mux` | bringup | 优先级仲裁 | 4 路 cmd_vel | `cmd_vel` |
+| `cmd_vel_mux` | bringup | 优先级仲裁 + 锁存急停 | 3 路 cmd_vel + 急停状态 | `cmd_vel`, 急停状态 |
 | `turn_assist` | bringup | 旋转→弧线改写 | `cmd_vel_web` | `cmd_vel_web_assisted` |
 | `patrol_node` | bringup | 循环巡逻 | Nav2 action | — |
 | `wall_follower_node` | bringup | 反应式沿墙(兜底) | `scan` | `cmd_vel_nav` |
-| `web_cmd_bridge` | web | HTTP↔ROS2 桥 | HTTP, `odom`/`imu`/`status` | `cmd_vel_web`, `cmd_vel_emergency` |
+| `web_cmd_bridge` | web | HTTP↔ROS2 桥 | HTTP, `odom`/`imu`/`status` | `cmd_vel_web`, `emergency_stop/reset` |
+| `waypoint_recorder` | bringup | 采集并校验真实 AMCL 航点 | `amcl_pose`, Trigger 服务 | 地图绑定路线 YAML |
 
 ## 1.3 话题接口总表
 
@@ -56,7 +57,9 @@
 | `/car01/cmd_vel_web_assisted` | geometry_msgs/Twist | turn_assist | mux(web源) |
 | `/car01/cmd_vel_teleop` | geometry_msgs/Twist | (手柄) | mux(teleop源) |
 | `/car01/cmd_vel_nav` | geometry_msgs/Twist | collision_monitor / wall_follower | mux(nav源) |
-| `/car01/cmd_vel_emergency` | geometry_msgs/Twist | web(E-STOP) | mux(急停源) |
+| `/car01/emergency_stop` | std_msgs/Bool | web/人工 | mux(触发锁存) |
+| `/car01/emergency_stop_reset` | std_msgs/Bool | web/人工 | mux(显式复位) |
+| `/car01/emergency_stop_latched` | std_msgs/Bool | mux | motor/web/patrol |
 | `/car01/cmd_vel` | geometry_msgs/Twist | mux | l298n_motor, wheel? (见下) |
 | `/car01/base_controller/status` | std_msgs/String(JSON) | l298n_motor | web |
 
@@ -82,13 +85,14 @@ base_link
 ## 1.5 命令速度(cmd_vel)优先级链
 
 ```
-cmd_vel_emergency (255) ─┐
-cmd_vel_web_assisted(100)─┤
-cmd_vel_teleop     (90) ─┤──► cmd_vel_mux ──► cmd_vel ──► l298n_motor
-cmd_vel_nav        (50) ─┘
+emergency_stop(True) ──► [锁存] ──► 持续输出0，直到 emergency_stop_reset
+cmd_vel_web_assisted(100)─┐
+cmd_vel_teleop      (90) ─┼──► cmd_vel_mux ──► cmd_vel ──► l298n_motor
+cmd_vel_nav         (50) ─┘
 ```
 
-任一路超时(emergency 0.3s / web 0.8s / teleop 0.8s / nav 0.6s)即自动降级,
-急停永远最高优先级。这保证了"人可以随时抢过自主导航的控制权,急停一定生效"。
+普通速度源超时(web 0.8s / teleop 0.8s / nav 0.6s)会自动降级。急停不是速度源，
+不存在超时；复位时会清空所有缓存速度，必须收到新指令后才能再次运动。电机节点还直接
+订阅锁存状态，形成第二道输出禁止。
 
 下一章:[02 硬件与接线](02_hardware_wiring.md)

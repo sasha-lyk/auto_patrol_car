@@ -46,8 +46,26 @@ ros2 launch raspi_car_bringup nav2.launch.py
 ros2 launch raspi_car_bringup patrol.launch.py
 ```
 
-航点在 `src/raspi_car_bringup/config/patrol_waypoints.yaml` 中配置。修改方法:在地图中
-将机器人遥控到目标位置,读取 `/car01/amcl_pose` 的 x/y/yaw,填入该文件后重新编译。
+航点不能手填示例值。首次进入真实场地时启动采集模式：
+
+```bash
+ros2 launch raspi_car_bringup record_waypoints.launch.py
+```
+
+将机器人遥控到每个巡逻点后执行：
+
+```bash
+ros2 service call /car01/capture_waypoint std_srvs/srv/Trigger {}
+```
+
+至少采集两个点，最后保存：
+
+```bash
+ros2 service call /car01/save_route std_srvs/srv/Trigger {}
+```
+
+生成的路线默认位于 `~/.ros/raspi_car/routes/room1_patrol.yaml`，包含当前地图指纹。
+巡逻启动时会拒绝未标定路线、非法坐标以及与当前地图不匹配的路线。
 
 ## 3. Web 远程控制
 
@@ -66,7 +84,8 @@ ros2 launch raspi_car_web web_control.launch.py
 | 方向按钮 / WASD / 方向键 | 前进、后退、左转、右转(按住持续,松开停止) |
 | 空格 | 停止 |
 | 低速 / 中速 / 高速 | 切换速度档位 |
-| 紧急停止(E-STOP) | 最高优先级立即停车 |
+| 紧急停止(E-STOP) | 立即停车并锁存，超时不会自动恢复 |
+| 复位急停 | 确认环境安全后显式恢复控制；旧速度指令会被清空 |
 
 **遥测面板**
 
@@ -76,7 +95,7 @@ ros2 launch raspi_car_web web_control.launch.py
 ## 4. 安全须知
 
 - Web 控制台默认无鉴权,**仅限可信局域网使用**;暴露到公网前请加鉴权与 HTTPS。
-- 人工遥控优先级高于自主导航,可随时接管;E-STOP 优先级最高,任何时候都能停车。
+- 人工遥控优先级高于自主导航；E-STOP 一旦触发会持续禁止电机输出，必须显式复位。
 - 首次运行或更换场地/负载后,建议先低速测试并确认急停有效。
 
 ## 5. 常见现象排查

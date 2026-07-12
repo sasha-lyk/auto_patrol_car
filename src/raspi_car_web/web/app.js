@@ -37,7 +37,7 @@ function stopHold() {
 // --- button wiring (mouse + touch) ---
 document.querySelectorAll('.pad button[data-cmd]').forEach(btn => {
   const cmd = btn.dataset.cmd;
-  if (cmd === 'S' || cmd === 'E') {
+  if (cmd === 'S' || cmd === 'E' || cmd === 'X') {
     btn.addEventListener('click', () => postCmd(cmd));
     return;
   }
@@ -97,6 +97,15 @@ async function poll() {
   $('dot').classList.add('on');
   $('link').textContent = '在线 · ' + (s.update_time || '');
   $('ns').textContent = s.namespace || 'car01';
+
+  const estop = $('estopstate');
+  if (s.estop_latched) {
+    estop.textContent = '急停已锁存 · 必须显式复位';
+    estop.className = 'badge err';
+  } else {
+    estop.textContent = '急停未触发';
+    estop.className = 'badge ok';
+  }
 
   $('pos').textContent = `${s.x.toFixed(2)} / ${s.y.toFixed(2)}`;
   $('yaw').textContent = (s.yaw * R2D).toFixed(1);

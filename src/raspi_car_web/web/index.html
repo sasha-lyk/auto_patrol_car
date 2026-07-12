@@ -37,6 +37,8 @@
     padding:14px;background:#4a1f1f !important;color:#ffd7d7 !important;
     font-size:15px !important;border-radius:10px}
   .estop:active{background:var(--err) !important;color:#fff !important}
+  .estop-reset{grid-column:1/4;aspect-ratio:auto !important;padding:11px;
+    background:var(--panel2) !important;color:var(--warn) !important;font-size:13px !important}
   /* speed */
   .speeds{display:flex;gap:8px;margin-top:16px;justify-content:center}
   .speeds button{flex:1;max-width:80px;padding:10px;border:1px solid var(--line);
@@ -78,6 +80,7 @@
       <button data-cmd="B">▼</button>
       <div class="empty"></div>
       <button class="estop" data-cmd="E">■ 紧急停止 (E-STOP)</button>
+      <button class="estop-reset" data-cmd="X">确认安全后复位急停</button>
     </div>
     <div class="speeds">
       <button data-spd="1">低速</button>
@@ -87,6 +90,7 @@
     <p style="color:var(--muted);font-size:12px;margin-top:14px">
       支持键盘 W/A/S/D 或方向键;空格 = 停止;按住持续发送。
     </p>
+    <div id="estopstate" class="badge ok">急停未触发</div>
   </div>
 
   <!-- pose / imu -->

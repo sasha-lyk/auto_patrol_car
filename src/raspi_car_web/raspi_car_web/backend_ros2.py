@@ -31,7 +31,7 @@ import rclpy
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Imu
-from std_msgs.msg import String
+from std_msgs.msg import Bool, String
 
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -63,12 +63,16 @@ class WebBridge:
         rclpy.init(args=None)
         self.node = rclpy.create_node('web_cmd_bridge', namespace=CAR_NAMESPACE)
         self.cmd_pub = self.node.create_publisher(Twist, 'cmd_vel_web', 10)
-        self.estop_pub = self.node.create_publisher(Twist, 'cmd_vel_emergency', 10)
+        self.estop_pub = self.node.create_publisher(Bool, 'emergency_stop', 10)
+        self.estop_reset_pub = self.node.create_publisher(
+            Bool, 'emergency_stop_reset', 10)
 
         self.node.create_subscription(Odometry, 'odom', self._on_odom, 10)
         self.node.create_subscription(Imu, 'imu', self._on_imu, 10)
         self.node.create_subscription(String, 'base_controller/status',
                                       self._on_status, 10)
+        self.node.create_subscription(Bool, 'emergency_stop_latched',
+                                      self._on_estop_state, 10)
 
         self.lock = threading.Lock()
         self.state = {
@@ -76,6 +80,7 @@ class WebBridge:
             'roll': 0.0, 'pitch': 0.0,
             'gx': 0.0, 'gy': 0.0, 'gz': 0.0,
             'base': {},
+            'estop_latched': False,
             'odom_age_ms': None, 'imu_age_ms': None, 'base_age_ms': None,
         }
         self._t_odom = 0.0
@@ -123,6 +128,10 @@ class WebBridge:
             self.state['base'] = data
         self._t_base = time.time()
 
+    def _on_estop_state(self, msg):
+        with self.lock:
+            self.state['estop_latched'] = bool(msg.data)
+
     def make_twist(self, cmd):
         twist = Twist()
         linear = LINEAR_SPEEDS[self.speed_level]
@@ -138,15 +147,25 @@ class WebBridge:
         return twist
 
     def publish_cmd(self, cmd):
+        with self.lock:
+            if self.state['estop_latched'] and cmd != 'S':
+                return False
         self.cmd_pub.publish(self.make_twist(cmd))
         self.last_cmd = cmd
         self.last_cmd_time = time.time()
+        return True
 
     def publish_estop(self):
-        # zero twist on the highest-priority mux channel -> immediate stop
-        self.estop_pub.publish(Twist())
+        msg = Bool()
+        msg.data = True
+        self.estop_pub.publish(msg)
         self.last_cmd = 'S'
         self.last_cmd_time = time.time()
+
+    def reset_estop(self):
+        msg = Bool()
+        msg.data = True
+        self.estop_reset_pub.publish(msg)
 
     def snapshot(self):
         now = time.time()
@@ -170,6 +189,7 @@ class WebBridge:
             'roll': round(s['roll'], 3), 'pitch': round(s['pitch'], 3),
             'gx': round(s['gx'], 3), 'gy': round(s['gy'], 3), 'gz': round(s['gz'], 3),
             'base': base,
+            'estop_latched': bool(s['estop_latched']),
             'odom_age_ms': age(self._t_odom),
             'imu_age_ms': age(self._t_imu),
             'base_age_ms': age(self._t_base),
@@ -213,10 +233,14 @@ def api_cmd():
         return jsonify({'ok': True, 'cmd': cmd, 'speed': bridge.speed_level})
     if cmd == 'E':  # emergency stop
         bridge.publish_estop()
-        return jsonify({'ok': True, 'cmd': 'E'})
+        return jsonify({'ok': True, 'cmd': 'E', 'latched': True})
+    if cmd == 'X':  # explicit emergency-stop reset
+        bridge.reset_estop()
+        return jsonify({'ok': True, 'cmd': 'X', 'reset_requested': True})
     if cmd not in ('F', 'B', 'L', 'R', 'S'):
         return jsonify({'ok': False, 'error': 'invalid command'}), 400
-    bridge.publish_cmd(cmd)
+    if not bridge.publish_cmd(cmd):
+        return jsonify({'ok': False, 'error': 'emergency stop is latched'}), 423
     return jsonify({'ok': True, 'cmd': cmd, 'speed': bridge.speed_level})
 
 
