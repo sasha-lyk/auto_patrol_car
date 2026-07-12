@@ -1,0 +1,68 @@
+# robot_localization EKF: fuses ENCODER wheel odometry with IMU.
+#
+# This is the node that makes the "closed loop" complete on the estimation
+# side. It owns the odom -> base_link transform (so wheel_odometry_node and
+# the IMU driver must NOT publish that TF themselves).
+#
+# Fusion strategy for a diff-drive robot:
+#   - from /car01/odom (encoders): vx (body) and vyaw  -> trustworthy motion
+#   - from /car01/imu  (IMU):      vyaw and yaw         -> kills heading drift
+#   The IMU's absolute yaw corrects the slow yaw drift that encoders alone
+#   accumulate; the encoders provide the linear distance the IMU cannot.
+#
+# Frames: map -> odom -> base_link. EKF publishes odom -> base_link.
+/car01/ekf_filter_node:
+  ros__parameters:
+    use_sim_time: false
+    frequency: 30.0
+    sensor_timeout: 0.2
+    two_d_mode: true                 # planar robot: lock z, roll, pitch
+    publish_tf: true
+    map_frame: map
+    odom_frame: odom
+    base_link_frame: base_link
+    world_frame: odom                # EKF estimates odom->base_link
+
+    # ---- source 1: wheel/encoder odometry ----
+    odom0: odom
+    # [x, y, z,  roll, pitch, yaw,  vx, vy, vz,  vroll, vpitch, vyaw,  ax, ay, az]
+    odom0_config: [false, false, false,
+                   false, false, false,
+                   true,  false, false,
+                   false, false, true,
+                   false, false, false]
+    odom0_queue_size: 10
+    odom0_differential: false
+    odom0_relative: false
+    odom0_nodelay: true
+
+    # ---- source 2: IMU ----
+    imu0: imu
+    # fuse absolute yaw + yaw rate (planar). accel left off (noisy on this car)
+    imu0_config: [false, false, false,
+                  false, false, true,
+                  false, false, false,
+                  false, false, true,
+                  false, false, false]
+    imu0_differential: false
+    imu0_relative: false
+    imu0_queue_size: 10
+    imu0_remove_gravitational_acceleration: true
+    imu0_nodelay: true
+
+    # process noise: how much we trust the motion model vs measurements
+    process_noise_covariance: [0.02, 0,    0,    0,    0,    0,    0,     0,     0,    0,    0,    0,    0,    0,    0,
+                               0,    0.02, 0,    0,    0,    0,    0,     0,     0,    0,    0,    0,    0,    0,    0,
+                               0,    0,    0.02, 0,    0,    0,    0,     0,     0,    0,    0,    0,    0,    0,    0,
+                               0,    0,    0,    0.05, 0,    0,    0,     0,     0,    0,    0,    0,    0,    0,    0,
+                               0,    0,    0,    0,    0.05, 0,    0,     0,     0,    0,    0,    0,    0,    0,    0,
+                               0,    0,    0,    0,    0,    0.03, 0,     0,     0,    0,    0,    0,    0,    0,    0,
+                               0,    0,    0,    0,    0,    0,    0.025, 0,     0,    0,    0,    0,    0,    0,    0,
+                               0,    0,    0,    0,    0,    0,    0,     0.025, 0,    0,    0,    0,    0,    0,    0,
+                               0,    0,    0,    0,    0,    0,    0,     0,     0.04, 0,    0,    0,    0,    0,    0,
+                               0,    0,    0,    0,    0,    0,    0,     0,     0,    0.01, 0,    0,    0,    0,    0,
+                               0,    0,    0,    0,    0,    0,    0,     0,     0,    0,    0.01, 0,    0,    0,    0,
+                               0,    0,    0,    0,    0,    0,    0,     0,     0,    0,    0,    0.02, 0,    0,    0,
+                               0,    0,    0,    0,    0,    0,    0,     0,     0,    0,    0,    0,    0.01, 0,    0,
+                               0,    0,    0,    0,    0,    0,    0,     0,     0,    0,    0,    0,    0,    0.01, 0,
+                               0,    0,    0,    0,    0,    0,    0,     0,     0,    0,    0,    0,    0,    0,    0.015]

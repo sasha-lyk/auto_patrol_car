@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  # Fast, dependency-free checks: Python syntax, YAML validity, package layout.
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install lint tools
+        run: pip install pyyaml flake8
+
+      - name: Python syntax check (compile all sources)
+        run: |
+          python -m compileall -q src
+          echo "all Python sources compiled OK"
+
+      - name: Validate YAML configs
+        run: |
+          python - <<'PY'
+          import glob, sys, yaml
+          bad = 0
+          for f in glob.glob('src/**/*.yaml', recursive=True):
+              try:
+                  yaml.safe_load(open(f, encoding='utf-8'))
+                  print('OK  ', f)
+              except Exception as e:
+                  print('FAIL', f, e); bad += 1
+          sys.exit(1 if bad else 0)
+          PY
+
+      - name: flake8 (style, non-blocking)
+        run: flake8 src --count --max-line-length=100 --statistics || true
+
+      - name: Check ROS2 package manifests exist
+        run: |
+          for p in raspi_car_base raspi_car_sensors raspi_car_bringup raspi_car_web; do
+            test -f "src/$p/package.xml" && test -f "src/$p/setup.py" \
+              && echo "OK   $p" || { echo "MISSING manifest in $p"; exit 1; }
+          done
+
+  # Full colcon build inside the official ROS2 Humble container.
+  # Allowed to fail (heavy Nav2/SLAM deps) so it never blocks a PR, but gives
+  # a real build signal when the runners are healthy.
+  colcon-build:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    container:
+      image: ros:humble-ros-base
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install workspace dependencies
+        shell: bash
+        run: |
+          apt-get update
+          rosdep update || true
+          rosdep install --from-paths src --ignore-src -r -y || true
+
+      - name: colcon build
+        shell: bash
+        run: |
+          source /opt/ros/humble/setup.bash
+          colcon build --symlink-install
+
+      - name: colcon test
+        shell: bash
+        run: |
+          source /opt/ros/humble/setup.bash
+          colcon test --return-code-on-test-failure || true
+          colcon test-result --verbose || true

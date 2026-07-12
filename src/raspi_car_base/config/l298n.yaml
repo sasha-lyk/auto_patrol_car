@@ -1,0 +1,63 @@
+/**:
+  ros__parameters:
+    # ---- L298N motor driver ----
+    dry_run: false
+    cmd_vel_topic: cmd_vel
+    wheel_speeds_topic: wheel_speeds_std
+    status_topic: base_controller/status
+
+    # BCM numbering, not physical pin numbering.
+    left_pwm_pin_bcm: 18
+    left_in1_pin_bcm: 23
+    left_in2_pin_bcm: 24
+    right_pwm_pin_bcm: 13
+    right_in1_pin_bcm: 27
+    right_in2_pin_bcm: 22
+
+    invert_left: false
+    invert_right: false
+
+    # Reverse forward so base_link +x points to the LIDAR end.
+    # Only the motor node negates linear.x; odometry must NOT be reversed.
+    reverse_forward: true
+
+    wheel_base: 0.20
+    max_linear_speed: 0.60
+    max_angular_speed: 3.0
+    max_wheel_speed: 0.90
+    min_pwm: 0.45
+    deadband_pwm: 0.03
+    cmd_vel_timeout_sec: 0.6
+    control_period_sec: 0.02
+    status_period_sec: 0.2
+
+    # ---- closed-loop PID velocity control (NEW) ----
+    # Uses measured wheel speed from encoder_node. Set closed_loop:false to
+    # fall back to the old static speed->PWM curve.
+    closed_loop: true
+    feedback_timeout_sec: 0.3
+    pid_kp: 2.2
+    pid_ki: 6.0
+    pid_kd: 0.02
+    pid_i_max: 0.6
+    feedforward_gain: 0.9
+
+    # ---- quadrature encoders (NEW) ----
+    left_a_pin_bcm: 5
+    left_b_pin_bcm: 6
+    right_a_pin_bcm: 16
+    right_b_pin_bcm: 26
+    encoder_cpr: 11              # counts per motor revolution (one channel)
+    gear_ratio: 90.0            # motor:wheel gearbox reduction
+    wheel_radius: 0.0325        # m
+    speed_filter_alpha: 0.3
+    publish_rate: 50.0
+
+    # ---- wheel odometry ----
+    odom_topic: odom
+    odom_frame_id: odom
+    base_frame_id: base_link
+    wheel_separation: 0.20
+    # EKF owns the odom->base_link TF, so the wheel odom node does NOT
+    # publish TF. Set true only if you run WITHOUT robot_localization.
+    publish_tf: false

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Raspi Car · 闭环控制台</title>
+<style>
+  :root{
+    --bg:#0f141b; --panel:#1a222d; --panel2:#222c39; --line:#2c3846;
+    --fg:#e7eef6; --muted:#8fa2b5; --accent:#3ea6ff; --ok:#37d67a;
+    --warn:#ffb020; --err:#ff5c5c;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font-family:-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif}
+  header{padding:14px 18px;background:var(--panel);border-bottom:1px solid var(--line);
+    display:flex;align-items:center;justify-content:space-between}
+  header h1{font-size:16px;margin:0;font-weight:600}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;
+    background:var(--err);margin-right:6px;vertical-align:middle}
+  .dot.on{background:var(--ok)}
+  .wrap{max-width:940px;margin:0 auto;padding:16px;
+    display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:720px){.wrap{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .card h2{font-size:13px;margin:0 0 12px;color:var(--muted);
+    text-transform:uppercase;letter-spacing:.5px}
+  /* D-pad */
+  .pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:280px;margin:0 auto}
+  .pad button{aspect-ratio:1;border:none;border-radius:12px;background:var(--panel2);
+    color:var(--fg);font-size:26px;font-weight:600;cursor:pointer;
+    transition:background .08s;user-select:none}
+  .pad button:active{background:var(--accent)}
+  .pad .empty{background:transparent;pointer-events:none}
+  .stop{background:#3a2530 !important;color:var(--err) !important;font-size:15px !important}
+  .estop{grid-column:1/4;margin-top:6px;aspect-ratio:auto !important;
+    padding:14px;background:#4a1f1f !important;color:#ffd7d7 !important;
+    font-size:15px !important;border-radius:10px}
+  .estop:active{background:var(--err) !important;color:#fff !important}
+  /* speed */
+  .speeds{display:flex;gap:8px;margin-top:16px;justify-content:center}
+  .speeds button{flex:1;max-width:80px;padding:10px;border:1px solid var(--line);
+    border-radius:8px;background:var(--panel2);color:var(--fg);cursor:pointer}
+  .speeds button.sel{background:var(--accent);border-color:var(--accent);color:#04121f}
+  /* telemetry */
+  .row{display:flex;justify-content:space-between;padding:7px 0;
+    border-bottom:1px solid var(--line);font-size:14px}
+  .row:last-child{border-bottom:none}
+  .row .k{color:var(--muted)}
+  .row .v{font-variant-numeric:tabular-nums}
+  .bar{height:8px;background:var(--panel2);border-radius:4px;overflow:hidden;margin-top:3px}
+  .bar > i{display:block;height:100%;background:var(--accent)}
+  .wheel{margin-bottom:12px}
+  .wheel .lab{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
+  .badge{font-size:11px;padding:2px 8px;border-radius:10px;background:var(--panel2)}
+  .badge.ok{color:var(--ok)} .badge.warn{color:var(--warn)} .badge.err{color:var(--err)}
+  footer{color:var(--muted);font-size:12px;text-align:center;padding:16px}
+</style>
+</head>
+<body>
+<header>
+  <h1>🚗 Raspi Car · 闭环控制台</h1>
+  <span><span id="dot" class="dot"></span><span id="link">连接中…</span></span>
+</header>
+
+<div class="wrap">
+  <!-- control -->
+  <div class="card">
+    <h2>运动控制</h2>
+    <div class="pad">
+      <div class="empty"></div>
+      <button data-cmd="F">▲</button>
+      <div class="empty"></div>
+      <button data-cmd="L">◀</button>
+      <button class="stop" data-cmd="S">STOP</button>
+      <button data-cmd="R">▶</button>
+      <div class="empty"></div>
+      <button data-cmd="B">▼</button>
+      <div class="empty"></div>
+      <button class="estop" data-cmd="E">■ 紧急停止 (E-STOP)</button>
+    </div>
+    <div class="speeds">
+      <button data-spd="1">低速</button>
+      <button data-spd="2" class="sel">中速</button>
+      <button data-spd="3">高速</button>
+    </div>
+    <p style="color:var(--muted);font-size:12px;margin-top:14px">
+      支持键盘 W/A/S/D 或方向键;空格 = 停止;按住持续发送。
+    </p>
+  </div>
+
+  <!-- pose / imu -->
+  <div class="card">
+    <h2>位姿 &amp; IMU (来自 EKF 融合)</h2>
+    <div class="row"><span class="k">位置 X / Y (m)</span><span class="v" id="pos">0.00 / 0.00</span></div>
+    <div class="row"><span class="k">航向 Yaw (°)</span><span class="v" id="yaw">0.0</span></div>
+    <div class="row"><span class="k">线速度 v (m/s)</span><span class="v" id="v">0.00</span></div>
+    <div class="row"><span class="k">角速度 ω (rad/s)</span><span class="v" id="w">0.00</span></div>
+    <div class="row"><span class="k">Roll / Pitch (°)</span><span class="v" id="rp">0.0 / 0.0</span></div>
+    <div class="row"><span class="k">陀螺 gz (rad/s)</span><span class="v" id="gz">0.00</span></div>
+    <div class="row"><span class="k">数据新鲜度</span><span class="v" id="age">-</span></div>
+  </div>
+
+  <!-- closed loop -->
+  <div class="card" style="grid-column:1/-1">
+    <h2>闭环状态 · 目标 vs 编码器实测轮速</h2>
+    <div id="loopbadge" class="badge">等待底盘数据…</div>
+    <div style="margin-top:14px" class="wheel">
+      <div class="lab"><span>左轮 target / meas (m/s)</span><span id="lw">0.00 / 0.00</span></div>
+      <div class="bar"><i id="lwbar" style="width:0%"></i></div>
+    </div>
+    <div class="wheel">
+      <div class="lab"><span>右轮 target / meas (m/s)</span><span id="rw">0.00 / 0.00</span></div>
+      <div class="bar"><i id="rwbar" style="width:0%"></i></div>
+    </div>
+    <div class="row"><span class="k">左/右 PWM 占空比</span><span class="v" id="pwm">0.00 / 0.00</span></div>
+    <div class="row"><span class="k">控制模式</span><span class="v" id="mode">-</span></div>
+  </div>
+</div>
+
+<footer>ROS2 Web Bridge · /api/cmd &amp; /api/status · namespace <span id="ns">car01</span></footer>
+
+<script src="app.js"></script>
+</body>
+</html>

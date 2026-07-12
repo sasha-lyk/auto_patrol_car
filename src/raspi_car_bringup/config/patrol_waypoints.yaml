@@ -1,0 +1,9 @@
+# Patrol waypoints in the room1 MAP frame (meters, yaw in radians).
+# PLACEHOLDER values -- CALIBRATE on site:
+#   1. localize the car in RViz / via amcl
+#   2. teleop to each patrol point, read /car01/amcl_pose (x,y,yaw)
+#   3. replace entries below, then rebuild.
+waypoints:
+  - {x: 0.5, y: 0.0, yaw: 0.0}
+  - {x: 1.0, y: 0.8, yaw: 1.57}
+  - {x: 0.0, y: 0.8, yaw: 3.14}

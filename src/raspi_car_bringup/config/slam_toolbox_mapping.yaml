@@ -1,0 +1,31 @@
+/**:
+  ros__parameters:
+    use_sim_time: false
+    mode: mapping
+
+    # NOTE: base_frame is base_link (NOT laser_frame). slam_toolbox computes
+    # map->odom by aligning scans, and the TF chain
+    #   map ->(slam) odom ->(EKF) base_link ->(static) laser_frame
+    # must resolve base_link. With the encoder+IMU EKF, odom->base_link is now
+    # accurate, so scan matching converges and loops close cleanly.
+    odom_frame: odom
+    map_frame: map
+    base_frame: base_link
+    scan_topic: /car01/scan
+
+    throttle_scans: 1
+    transform_publish_period: 0.02
+    map_update_interval: 2.0
+    resolution: 0.05
+    min_laser_range: 0.2
+    max_laser_range: 12.0
+    minimum_time_interval: 0.1
+    transform_timeout: 1.0
+    tf_buffer_duration: 60.0
+    stack_size_to_use: 40000000
+    enable_interactive_mode: true
+
+    # loop closure (default slam_toolbox behaviour, made explicit)
+    do_loop_closing: true
+    loop_search_maximum_distance: 3.0
+    loop_match_minimum_response_fine: 0.45
