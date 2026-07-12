@@ -3,7 +3,7 @@
 Two directions:
   Browser --HTTP /api/cmd--> Twist on /<ns>/cmd_vel_web (-> turn_assist -> mux)
   ROS2 topics --subscribe--> /api/status returns REAL telemetry:
-      /<ns>/odom                 -> pose (x,y,yaw) + speed from EKF/encoders
+      /<ns>/odometry/filtered    -> pose (x,y,yaw) + speed from EKF
       /<ns>/imu                  -> roll/pitch/yaw, gyro
       /<ns>/base_controller/status -> per-wheel target vs measured speed, PWM
 
@@ -67,7 +67,8 @@ class WebBridge:
         self.estop_reset_pub = self.node.create_publisher(
             Bool, 'emergency_stop_reset', 10)
 
-        self.node.create_subscription(Odometry, 'odom', self._on_odom, 10)
+        self.node.create_subscription(
+            Odometry, 'odometry/filtered', self._on_odom, 10)
         self.node.create_subscription(Imu, 'imu', self._on_imu, 10)
         self.node.create_subscription(String, 'base_controller/status',
                                       self._on_status, 10)

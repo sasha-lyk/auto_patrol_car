@@ -52,7 +52,8 @@
 | `/car01/imu` | sensor_msgs/Imu | yb_mra02 | ekf, web |
 | `/car01/wheel_ticks_std` | std_msgs/Int32MultiArray | encoder | wheel_odometry |
 | `/car01/wheel_speeds_std` | std_msgs/Float32MultiArray | encoder | l298n_motor |
-| `/car01/odom` | nav_msgs/Odometry | wheel_odometry | ekf, nav2, web |
+| `/car01/odom` | nav_msgs/Odometry | wheel_odometry | ekf, nav2 |
+| `/car01/odometry/filtered` | nav_msgs/Odometry | EKF | web；融合后的位姿与速度 |
 | `/car01/cmd_vel_web` | geometry_msgs/Twist | web | turn_assist |
 | `/car01/cmd_vel_web_assisted` | geometry_msgs/Twist | turn_assist | mux(web源) |
 | `/car01/cmd_vel_teleop` | geometry_msgs/Twist | (手柄) | mux(teleop源) |

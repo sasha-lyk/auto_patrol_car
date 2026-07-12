@@ -17,7 +17,7 @@ Flask 后端 backend_ros2.py(web_cmd_bridge 节点)
    │  发布 → /car01/emergency_stop       (True=触发并锁存)
    │  发布 → /car01/emergency_stop_reset (True=人工显式复位)
    │  订阅 ← /car01/emergency_stop_latched
-   │  订阅 ← /car01/odom              (EKF 位姿:x,y,yaw,v,w)
+   │  订阅 ← /car01/odometry/filtered (EKF 融合位姿:x,y,yaw,v,w)
    │  订阅 ← /car01/imu               (roll,pitch,gyro)
    │  订阅 ← /car01/base_controller/status (目标/实测轮速,PWM,闭环标志)
    ▼
